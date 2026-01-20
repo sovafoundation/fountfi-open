@@ -1,0 +1,243 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.25;
+
+import {Test, console2} from "forge-std/Test.sol";
+import {MultiCollateralRegistry} from "../contracts/MultiCollateralRegistry.sol";
+import {RoleManager} from "../src/auth/RoleManager.sol";
+import {MockERC20} from "../src/mocks/MockERC20.sol";
+
+contract MultiCollateralRegistryTest is Test {
+    MultiCollateralRegistry public registry;
+    RoleManager public roleManager;
+    
+    address public admin = address(0x1);
+    address public user = address(0x2);
+    
+    MockERC20 public sovaBTC;
+    MockERC20 public wbtc;
+    MockERC20 public tbtc;
+    MockERC20 public cbbtc;
+    
+    function setUp() public {
+        // Deploy role manager
+        roleManager = new RoleManager();
+        roleManager.grantRole(roleManager.PROTOCOL_ADMIN(), admin);
+        
+        // Deploy mock tokens
+        sovaBTC = new MockERC20("SovaBTC", "SBTC", 8);
+        wbtc = new MockERC20("Wrapped BTC", "WBTC", 8);
+        tbtc = new MockERC20("tBTC", "TBTC", 18);
+        cbbtc = new MockERC20("Coinbase BTC", "cbBTC", 8);
+        
+        // Deploy registry
+        registry = new MultiCollateralRegistry(address(roleManager), address(sovaBTC));
+    }
+    
+    function testConstructor() public {
+        assertEq(registry.sovaBTC(), address(sovaBTC));
+        assertEq(address(registry.roleManager()), address(roleManager));
+    }
+    
+    function testAddCollateral() public {
+        vm.startPrank(admin);
+        
+        // Add WBTC as collateral
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        
+        assertTrue(registry.allowedCollateral(address(wbtc)));
+        assertEq(registry.collateralToSovaBTCRate(address(wbtc)), 1e18);
+        assertEq(registry.collateralDecimals(address(wbtc)), 8);
+        
+        // Check it's in the array
+        address[] memory tokens = registry.getAllCollateralTokens();
+        assertEq(tokens.length, 1);
+        assertEq(tokens[0], address(wbtc));
+        
+        vm.stopPrank();
+    }
+    
+    function testAddMultipleCollaterals() public {
+        vm.startPrank(admin);
+        
+        // Add multiple collaterals
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        registry.addCollateral(address(tbtc), 1e18, 18);
+        registry.addCollateral(address(cbbtc), 1e18, 8);
+        
+        // Add SovaBTC itself as collateral
+        registry.addCollateral(address(sovaBTC), 1e18, 8);
+        
+        address[] memory tokens = registry.getAllCollateralTokens();
+        assertEq(tokens.length, 4);
+        assertEq(registry.getCollateralTokenCount(), 4);
+        
+        vm.stopPrank();
+    }
+    
+    function testCannotAddDuplicateCollateral() public {
+        vm.startPrank(admin);
+        
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        
+        // Try to add again
+        vm.expectRevert(MultiCollateralRegistry.InvalidCollateral.selector);
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        
+        vm.stopPrank();
+    }
+    
+    function testCannotAddZeroAddress() public {
+        vm.startPrank(admin);
+        
+        vm.expectRevert(MultiCollateralRegistry.InvalidCollateral.selector);
+        registry.addCollateral(address(0), 1e18, 8);
+        
+        vm.stopPrank();
+    }
+    
+    function testCannotAddZeroRate() public {
+        vm.startPrank(admin);
+        
+        vm.expectRevert(MultiCollateralRegistry.InvalidRate.selector);
+        registry.addCollateral(address(wbtc), 0, 8);
+        
+        vm.stopPrank();
+    }
+    
+    function testOnlyAdminCanAddCollateral() public {
+        vm.startPrank(user);
+        
+        vm.expectRevert();
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        
+        vm.stopPrank();
+    }
+    
+    function testRemoveCollateral() public {
+        vm.startPrank(admin);
+        
+        // Add and then remove
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        registry.addCollateral(address(tbtc), 1e18, 18);
+        
+        registry.removeCollateral(address(wbtc));
+        
+        assertFalse(registry.allowedCollateral(address(wbtc)));
+        assertEq(registry.collateralToSovaBTCRate(address(wbtc)), 0);
+        assertEq(registry.collateralDecimals(address(wbtc)), 0);
+        
+        // Check array updated
+        address[] memory tokens = registry.getAllCollateralTokens();
+        assertEq(tokens.length, 1);
+        assertEq(tokens[0], address(tbtc));
+        
+        vm.stopPrank();
+    }
+    
+    function testUpdateRate() public {
+        vm.startPrank(admin);
+        
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        
+        // Update rate (maybe there's a depeg)
+        registry.updateRate(address(wbtc), 0.95e18);
+        
+        assertEq(registry.collateralToSovaBTCRate(address(wbtc)), 0.95e18);
+        
+        vm.stopPrank();
+    }
+    
+    function testConvertToSovaBTC_8Decimals() public {
+        vm.startPrank(admin);
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        vm.stopPrank();
+        
+        // 1 WBTC (8 decimals) = 1 SovaBTC (8 decimals)
+        uint256 wbtcAmount = 1e8; // 1 WBTC
+        uint256 sovaBTCValue = registry.convertToSovaBTC(address(wbtc), wbtcAmount);
+        
+        assertEq(sovaBTCValue, 1e8); // 1 SovaBTC
+    }
+    
+    function testConvertToSovaBTC_18Decimals() public {
+        vm.startPrank(admin);
+        registry.addCollateral(address(tbtc), 1e18, 18);
+        vm.stopPrank();
+        
+        // 1 tBTC (18 decimals) = 1 SovaBTC (8 decimals)
+        uint256 tbtcAmount = 1e18; // 1 tBTC
+        uint256 sovaBTCValue = registry.convertToSovaBTC(address(tbtc), tbtcAmount);
+        
+        assertEq(sovaBTCValue, 1e8); // 1 SovaBTC
+    }
+    
+    function testConvertToSovaBTC_SovaBTCItself() public {
+        vm.startPrank(admin);
+        registry.addCollateral(address(sovaBTC), 1e18, 8);
+        vm.stopPrank();
+        
+        // Special case: SovaBTC to SovaBTC is always 1:1
+        uint256 amount = 1e8; // 1 SovaBTC
+        uint256 value = registry.convertToSovaBTC(address(sovaBTC), amount);
+        
+        assertEq(value, amount); // Unchanged
+    }
+    
+    function testConvertToSovaBTC_WithDifferentRate() public {
+        vm.startPrank(admin);
+        // Add with 0.95 rate (5% discount)
+        registry.addCollateral(address(wbtc), 0.95e18, 8);
+        vm.stopPrank();
+        
+        uint256 wbtcAmount = 1e8; // 1 WBTC
+        uint256 sovaBTCValue = registry.convertToSovaBTC(address(wbtc), wbtcAmount);
+        
+        assertEq(sovaBTCValue, 0.95e8); // 0.95 SovaBTC
+    }
+    
+    function testConvertFromSovaBTC_8Decimals() public {
+        vm.startPrank(admin);
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        vm.stopPrank();
+        
+        uint256 sovaBTCAmount = 1e8; // 1 SovaBTC
+        uint256 wbtcAmount = registry.convertFromSovaBTC(address(wbtc), sovaBTCAmount);
+        
+        assertEq(wbtcAmount, 1e8); // 1 WBTC
+    }
+    
+    function testConvertFromSovaBTC_18Decimals() public {
+        vm.startPrank(admin);
+        registry.addCollateral(address(tbtc), 1e18, 18);
+        vm.stopPrank();
+        
+        uint256 sovaBTCAmount = 1e8; // 1 SovaBTC
+        uint256 tbtcAmount = registry.convertFromSovaBTC(address(tbtc), sovaBTCAmount);
+        
+        assertEq(tbtcAmount, 1e18); // 1 tBTC
+    }
+    
+    function testCannotConvertUnallowedCollateral() public {
+        vm.expectRevert(MultiCollateralRegistry.CollateralNotAllowed.selector);
+        registry.convertToSovaBTC(address(wbtc), 1e8);
+        
+        vm.expectRevert(MultiCollateralRegistry.CollateralNotAllowed.selector);
+        registry.convertFromSovaBTC(address(wbtc), 1e8);
+    }
+    
+    function testFuzzConversion(uint256 amount, uint256 rate) public {
+        // Bound inputs to reasonable ranges
+        amount = bound(amount, 1, 1e27); // Up to 1 billion tokens
+        rate = bound(rate, 0.01e18, 100e18); // 0.01x to 100x rate
+        
+        vm.startPrank(admin);
+        registry.addCollateral(address(wbtc), rate, 8);
+        vm.stopPrank();
+        
+        uint256 sovaBTCValue = registry.convertToSovaBTC(address(wbtc), amount);
+        uint256 backToWBTC = registry.convertFromSovaBTC(address(wbtc), sovaBTCValue);
+        
+        // Should be close to original (may have small rounding error)
+        assertApproxEqAbs(backToWBTC, amount, 1);
+    }
+}

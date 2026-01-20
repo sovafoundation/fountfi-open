@@ -1,0 +1,297 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.25;
+
+import {Test, console2} from "forge-std/Test.sol";
+import {MultiCollateralStrategy} from "../contracts/MultiCollateralStrategy.sol";
+import {MultiCollateralRegistry} from "../contracts/MultiCollateralRegistry.sol";
+import {RoleManager} from "../src/auth/RoleManager.sol";
+import {Registry} from "../src/registry/Registry.sol";
+import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {MockReporter} from "../src/mocks/MockReporter.sol";
+import {LibClone} from "solady/utils/LibClone.sol";
+import {Conduit} from "../src/conduit/Conduit.sol";
+
+// Import the multi-collateral version of tRWA
+import "../src/token/tRWA-multicollateral.sol";
+
+contract MultiCollateralVaultTest is Test {
+    using LibClone for address;
+    
+    // Core contracts
+    tRWA public vault;
+    MultiCollateralStrategy public strategy;
+    MultiCollateralRegistry public collateralRegistry;
+    Conduit public conduit;
+    Registry public registry;
+    RoleManager public roleManager;
+    MockReporter public reporter;
+    
+    // Addresses
+    address public admin = address(0x1);
+    address public manager = address(0x2);
+    address public user = address(0x3);
+    address public operator = address(0x4);
+    
+    // Tokens
+    MockERC20 public sovaBTC;
+    MockERC20 public wbtc;
+    MockERC20 public tbtc;
+    
+    function setUp() public {
+        // Deploy role manager
+        roleManager = new RoleManager();
+        roleManager.grantRole(roleManager.PROTOCOL_ADMIN(), admin);
+        roleManager.grantRole(roleManager.MANAGER(), manager);
+        roleManager.grantRole(roleManager.STRATEGY_OPERATOR(), operator);
+        
+        // Deploy tokens
+        sovaBTC = new MockERC20("SovaBTC", "SBTC", 8);
+        wbtc = new MockERC20("Wrapped BTC", "WBTC", 8);
+        tbtc = new MockERC20("tBTC", "TBTC", 18);
+        
+        // Deploy registry
+        registry = new Registry(address(roleManager));
+        conduit = Conduit(registry.conduit());
+        
+        // Deploy collateral registry
+        collateralRegistry = new MultiCollateralRegistry(address(roleManager), address(sovaBTC));
+        
+        // Add collaterals
+        vm.startPrank(admin);
+        collateralRegistry.addCollateral(address(wbtc), 1e18, 8);
+        collateralRegistry.addCollateral(address(tbtc), 1e18, 18);
+        collateralRegistry.addCollateral(address(sovaBTC), 1e18, 8);
+        
+        // Add SovaBTC as allowed asset in main registry
+        registry.setAsset(address(sovaBTC), 8);
+        
+        // Deploy reporter
+        reporter = new MockReporter();
+        reporter.setReport(abi.encode(1e18)); // 1:1 price
+        
+        // Deploy strategy template and register it
+        MultiCollateralStrategy strategyImpl = new MultiCollateralStrategy();
+        registry.setStrategy(address(strategyImpl), true);
+        vm.stopPrank();
+        
+        // Deploy strategy instance through registry
+        bytes memory initData = abi.encode(address(reporter), address(collateralRegistry));
+        vm.prank(operator);
+        (address deployedStrategy, address deployedToken) = registry.deploy(
+            address(strategyImpl),
+            "Multi-Collateral Vault",
+            "mcVault",
+            address(sovaBTC),
+            manager,
+            initData
+        );
+        
+        strategy = MultiCollateralStrategy(deployedStrategy);
+        
+        // Deploy vault (tRWA)
+        vault = new tRWA(
+            "Multi-Collateral Vault",
+            "mcVault",
+            address(sovaBTC),
+            8,
+            address(strategy),
+            address(sovaBTC)
+        );
+        
+        // Set vault as sToken in strategy
+        vm.prank(manager);
+        strategy.setSToken(address(vault));
+        
+        // Grant vault role to vault
+        vm.prank(admin);
+        roleManager.grantRole(keccak256("VAULT_ROLE"), address(vault));
+        
+        // Register vault as strategy token
+        vm.prank(admin);
+        registry.setStrategy(address(vault), true);
+        
+        // Mint tokens to user
+        wbtc.mint(user, 10e8); // 10 WBTC
+        tbtc.mint(user, 10e18); // 10 tBTC
+        sovaBTC.mint(user, 10e8); // 10 SovaBTC
+    }
+    
+    function testVaultSetup() public {
+        assertEq(vault.asset(), address(sovaBTC));
+        assertEq(vault.sovaBTC(), address(sovaBTC));
+        assertEq(vault.underlyingAsset(), address(sovaBTC));
+        assertEq(vault.strategy(), address(strategy));
+    }
+    
+    function testDepositWBTC() public {
+        uint256 depositAmount = 1e8; // 1 WBTC
+        
+        vm.startPrank(user);
+        
+        // Approve conduit
+        wbtc.approve(address(conduit), depositAmount);
+        
+        // Deposit WBTC
+        uint256 shares = vault.depositCollateral(address(wbtc), depositAmount, user);
+        
+        vm.stopPrank();
+        
+        // Check results
+        assertEq(shares, 1e8); // 1:1 initially
+        assertEq(vault.balanceOf(user), shares);
+        assertEq(wbtc.balanceOf(user), 9e8); // 10 - 1 = 9
+        assertEq(wbtc.balanceOf(address(strategy)), depositAmount);
+        assertEq(strategy.collateralBalances(address(wbtc)), depositAmount);
+    }
+    
+    function testDepositTBTC() public {
+        uint256 depositAmount = 2e18; // 2 tBTC (18 decimals)
+        
+        vm.startPrank(user);
+        
+        // Approve conduit
+        tbtc.approve(address(conduit), depositAmount);
+        
+        // Deposit tBTC
+        uint256 shares = vault.depositCollateral(address(tbtc), depositAmount, user);
+        
+        vm.stopPrank();
+        
+        // Check results (2 tBTC = 2 SovaBTC worth = 2e8 shares)
+        assertEq(shares, 2e8);
+        assertEq(vault.balanceOf(user), shares);
+        assertEq(tbtc.balanceOf(address(strategy)), depositAmount);
+    }
+    
+    function testDepositSovaBTC() public {
+        uint256 depositAmount = 3e8; // 3 SovaBTC
+        
+        vm.startPrank(user);
+        
+        // Approve conduit
+        sovaBTC.approve(address(conduit), depositAmount);
+        
+        // Deposit SovaBTC
+        uint256 shares = vault.depositCollateral(address(sovaBTC), depositAmount, user);
+        
+        vm.stopPrank();
+        
+        // Check results (1:1 for SovaBTC)
+        assertEq(shares, depositAmount);
+        assertEq(vault.balanceOf(user), shares);
+        assertEq(sovaBTC.balanceOf(address(strategy)), depositAmount);
+    }
+    
+    function testMultipleDeposits() public {
+        vm.startPrank(user);
+        
+        // Approve all tokens
+        wbtc.approve(address(conduit), 10e8);
+        tbtc.approve(address(conduit), 10e18);
+        sovaBTC.approve(address(conduit), 10e8);
+        
+        // Deposit 1 WBTC
+        uint256 shares1 = vault.depositCollateral(address(wbtc), 1e8, user);
+        assertEq(shares1, 1e8);
+        
+        // Deposit 2 tBTC
+        uint256 shares2 = vault.depositCollateral(address(tbtc), 2e18, user);
+        assertEq(shares2, 2e8);
+        
+        // Deposit 0.5 SovaBTC  
+        uint256 shares3 = vault.depositCollateral(address(sovaBTC), 0.5e8, user);
+        assertEq(shares3, 0.5e8);
+        
+        vm.stopPrank();
+        
+        // Total shares should be 3.5
+        assertEq(vault.balanceOf(user), 3.5e8);
+        assertEq(vault.totalSupply(), 3.5e8);
+        assertEq(vault.totalAssets(), 3.5e8);
+    }
+    
+    function testRedemption() public {
+        // Setup: User deposits collateral
+        vm.startPrank(user);
+        wbtc.approve(address(conduit), 2e8);
+        vault.depositCollateral(address(wbtc), 2e8, user); // 2 WBTC = 2 shares
+        vm.stopPrank();
+        
+        // Manager deposits SovaBTC for redemptions
+        sovaBTC.mint(manager, 10e8);
+        vm.startPrank(manager);
+        sovaBTC.approve(address(strategy), 10e8);
+        strategy.depositRedemptionFunds(10e8);
+        vm.stopPrank();
+        
+        // User redeems 1 share
+        vm.startPrank(user);
+        uint256 assetsRedeemed = vault.redeem(1e8, user, user);
+        vm.stopPrank();
+        
+        // Check results
+        assertEq(assetsRedeemed, 1e8); // 1 SovaBTC
+        assertEq(sovaBTC.balanceOf(user), 11e8); // 10 initial + 1 redeemed
+        assertEq(vault.balanceOf(user), 1e8); // 2 - 1 = 1 share left
+    }
+    
+    function testCannotDepositUnallowedCollateral() public {
+        MockERC20 randomToken = new MockERC20("Random", "RND", 18);
+        randomToken.mint(user, 10e18);
+        
+        vm.startPrank(user);
+        randomToken.approve(address(conduit), 10e18);
+        
+        // Should fail in conduit
+        vm.expectRevert("Invalid collateral");
+        vault.depositCollateral(address(randomToken), 1e18, user);
+        
+        vm.stopPrank();
+    }
+    
+    function testPreviewFunctions() public {
+        // Initial state: empty vault
+        assertEq(vault.previewDeposit(1e8), 1e8); // 1:1
+        assertEq(vault.previewMint(1e8), 1e8); // 1:1
+        
+        // After some deposits
+        vm.startPrank(user);
+        wbtc.approve(address(conduit), 5e8);
+        vault.depositCollateral(address(wbtc), 5e8, user);
+        vm.stopPrank();
+        
+        // Still 1:1 (no yield yet)
+        assertEq(vault.previewDeposit(1e8), 1e8);
+        assertEq(vault.previewRedeem(1e8), 1e8);
+    }
+    
+    function testStandardDepositFunction() public {
+        // The standard deposit function should still work with SovaBTC
+        vm.startPrank(user);
+        sovaBTC.approve(address(conduit), 1e8);
+        
+        uint256 shares = vault.deposit(1e8, user);
+        vm.stopPrank();
+        
+        assertEq(shares, 1e8);
+        assertEq(vault.balanceOf(user), 1e8);
+    }
+    
+    function testSharePriceWithMixedCollateral() public {
+        // Deposit various collaterals
+        vm.startPrank(user);
+        wbtc.approve(address(conduit), 10e8);
+        tbtc.approve(address(conduit), 10e18);
+        
+        vault.depositCollateral(address(wbtc), 2e8, user); // 2 BTC worth
+        vault.depositCollateral(address(tbtc), 3e18, user); // 3 BTC worth
+        vm.stopPrank();
+        
+        // Total assets should be 5 BTC worth = 5e8 SovaBTC
+        assertEq(vault.totalAssets(), 5e8);
+        assertEq(vault.totalSupply(), 5e8);
+        
+        // Share price should still be 1:1
+        assertEq(vault.previewRedeem(1e8), 1e8);
+    }
+}

@@ -1,0 +1,261 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.25;
+
+import {Test, console2} from "forge-std/Test.sol";
+import {MultiCollateralStrategy} from "../contracts/MultiCollateralStrategy.sol";
+import {MultiCollateralRegistry} from "../contracts/MultiCollateralRegistry.sol";
+import {RoleManager} from "../src/auth/RoleManager.sol";
+import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {MockReporter} from "../src/mocks/MockReporter.sol";
+import {MocktRWA} from "../src/mocks/MocktRWA.sol";
+
+contract MultiCollateralStrategyTest is Test {
+    MultiCollateralStrategy public strategy;
+    MultiCollateralRegistry public registry;
+    RoleManager public roleManager;
+    MockReporter public reporter;
+    MocktRWA public vault;
+    
+    address public admin = address(0x1);
+    address public manager = address(0x2);
+    address public user = address(0x3);
+    
+    MockERC20 public sovaBTC;
+    MockERC20 public wbtc;
+    MockERC20 public tbtc;
+    
+    function setUp() public {
+        // Deploy role manager and grant roles
+        roleManager = new RoleManager();
+        roleManager.grantRole(roleManager.PROTOCOL_ADMIN(), admin);
+        roleManager.grantRole(roleManager.MANAGER(), manager);
+        
+        // Deploy tokens
+        sovaBTC = new MockERC20("SovaBTC", "SBTC", 8);
+        wbtc = new MockERC20("Wrapped BTC", "WBTC", 8);
+        tbtc = new MockERC20("tBTC", "TBTC", 18);
+        
+        // Deploy registry and add collaterals
+        registry = new MultiCollateralRegistry(address(roleManager), address(sovaBTC));
+        vm.startPrank(admin);
+        registry.addCollateral(address(wbtc), 1e18, 8);
+        registry.addCollateral(address(tbtc), 1e18, 18);
+        registry.addCollateral(address(sovaBTC), 1e18, 8);
+        vm.stopPrank();
+        
+        // Deploy reporter
+        reporter = new MockReporter();
+        reporter.setReport(abi.encode(1e18)); // 1:1 price
+        
+        // Deploy strategy
+        strategy = new MultiCollateralStrategy();
+        bytes memory initData = abi.encode(address(reporter), address(registry));
+        strategy.initialize(
+            "Multi-Collateral Strategy",
+            "MCS",
+            address(roleManager),
+            manager,
+            address(sovaBTC),
+            8,
+            initData
+        );
+        
+        // Deploy mock vault and set as sToken
+        vault = new MocktRWA();
+        
+        // Grant vault role
+        vm.prank(admin);
+        roleManager.grantRole(keccak256("VAULT_ROLE"), address(vault));
+        
+        // Set vault as sToken in strategy
+        vm.prank(manager);
+        strategy.setSToken(address(vault));
+    }
+    
+    function testInitialization() public {
+        assertEq(strategy.collateralRegistry(), address(registry));
+        assertEq(address(strategy.reporter()), address(reporter));
+        assertEq(strategy.asset(), address(sovaBTC));
+        assertEq(strategy.assetDecimals(), 8);
+    }
+    
+    function testDepositCollateral_WBTC() public {
+        uint256 amount = 1e8; // 1 WBTC
+        
+        // Mint WBTC to strategy (simulating transfer from conduit)
+        wbtc.mint(address(strategy), amount);
+        
+        // Vault deposits collateral
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(wbtc), amount);
+        
+        // Check balances
+        assertEq(strategy.collateralBalances(address(wbtc)), amount);
+        assertEq(strategy.totalCollateralValue(), 1e8); // 1 SovaBTC worth
+        
+        // Check held tokens array
+        address[] memory held = strategy.getHeldCollateralTokens();
+        assertEq(held.length, 1);
+        assertEq(held[0], address(wbtc));
+    }
+    
+    function testDepositCollateral_TBTC() public {
+        uint256 amount = 1e18; // 1 tBTC (18 decimals)
+        
+        // Mint tBTC to strategy
+        tbtc.mint(address(strategy), amount);
+        
+        // Vault deposits collateral
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(tbtc), amount);
+        
+        // Check balances
+        assertEq(strategy.collateralBalances(address(tbtc)), amount);
+        assertEq(strategy.totalCollateralValue(), 1e8); // 1 SovaBTC worth (8 decimals)
+    }
+    
+    function testDepositCollateral_SovaBTC() public {
+        uint256 amount = 1e8; // 1 SovaBTC
+        
+        // Mint SovaBTC to strategy
+        sovaBTC.mint(address(strategy), amount);
+        
+        // Vault deposits collateral
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(sovaBTC), amount);
+        
+        // Check balances
+        assertEq(strategy.collateralBalances(address(sovaBTC)), amount);
+        assertEq(strategy.totalCollateralValue(), 1e8); // 1 SovaBTC
+    }
+    
+    function testDepositMultipleCollaterals() public {
+        // Deposit 1 WBTC
+        wbtc.mint(address(strategy), 1e8);
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(wbtc), 1e8);
+        
+        // Deposit 2 tBTC
+        tbtc.mint(address(strategy), 2e18);
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(tbtc), 2e18);
+        
+        // Deposit 0.5 SovaBTC
+        sovaBTC.mint(address(strategy), 0.5e8);
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(sovaBTC), 0.5e8);
+        
+        // Total should be 3.5 SovaBTC
+        assertEq(strategy.totalCollateralValue(), 3.5e8);
+        
+        // Check held tokens
+        address[] memory held = strategy.getHeldCollateralTokens();
+        assertEq(held.length, 3);
+    }
+    
+    function testCannotDepositUnallowedCollateral() public {
+        MockERC20 randomToken = new MockERC20("Random", "RND", 18);
+        
+        vm.prank(address(vault));
+        vm.expectRevert(MultiCollateralStrategy.CollateralNotAllowed.selector);
+        strategy.depositCollateral(address(randomToken), 1e18);
+    }
+    
+    function testOnlyVaultCanDepositCollateral() public {
+        wbtc.mint(address(strategy), 1e8);
+        
+        vm.prank(user);
+        vm.expectRevert(MultiCollateralStrategy.OnlyVault.selector);
+        strategy.depositCollateral(address(wbtc), 1e8);
+        
+        vm.prank(manager);
+        vm.expectRevert(MultiCollateralStrategy.OnlyVault.selector);
+        strategy.depositCollateral(address(wbtc), 1e8);
+    }
+    
+    function testDepositRedemptionFunds() public {
+        uint256 amount = 10e8; // 10 SovaBTC
+        
+        // Mint SovaBTC to manager
+        sovaBTC.mint(manager, amount);
+        
+        // Manager approves and deposits
+        vm.startPrank(manager);
+        sovaBTC.approve(address(strategy), amount);
+        strategy.depositRedemptionFunds(amount);
+        vm.stopPrank();
+        
+        // Check SovaBTC balance
+        assertEq(sovaBTC.balanceOf(address(strategy)), amount);
+        assertEq(strategy.totalCollateralValue(), amount);
+    }
+    
+    function testOnlyManagerCanDepositRedemptionFunds() public {
+        sovaBTC.mint(user, 10e8);
+        
+        vm.startPrank(user);
+        sovaBTC.approve(address(strategy), 10e8);
+        vm.expectRevert();
+        strategy.depositRedemptionFunds(10e8);
+        vm.stopPrank();
+    }
+    
+    function testWithdraw() public {
+        // Setup: deposit some SovaBTC for redemptions
+        sovaBTC.mint(address(strategy), 5e8);
+        
+        // Vault is already set as sToken, so it can withdraw
+        
+        // Vault withdraws SovaBTC
+        vm.prank(address(vault));
+        strategy.withdraw(user, 2e8);
+        
+        // Check balances
+        assertEq(sovaBTC.balanceOf(user), 2e8);
+        assertEq(sovaBTC.balanceOf(address(strategy)), 3e8);
+    }
+    
+    function testBalance() public {
+        // Set up mixed collateral
+        wbtc.mint(address(strategy), 2e8); // 2 WBTC
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(wbtc), 2e8);
+        
+        sovaBTC.mint(address(strategy), 1e8); // 1 SovaBTC for redemptions
+        
+        // Balance should include all collateral
+        uint256 balance = strategy.balance();
+        assertEq(balance, 3e8); // 2 + 1 = 3 SovaBTC total
+    }
+    
+    function testUpdateCollateralRegistry() public {
+        MultiCollateralRegistry newRegistry = new MultiCollateralRegistry(
+            address(roleManager),
+            address(sovaBTC)
+        );
+        
+        vm.prank(admin);
+        strategy.updateCollateralRegistry(address(newRegistry));
+        
+        assertEq(strategy.collateralRegistry(), address(newRegistry));
+    }
+    
+    function testCannotUpdateRegistryToZero() public {
+        vm.prank(admin);
+        vm.expectRevert(MultiCollateralStrategy.InvalidRegistry.selector);
+        strategy.updateCollateralRegistry(address(0));
+    }
+    
+    function testTotalCollateralValueWithSovaBTCBalance() public {
+        // Deposit mixed collateral
+        wbtc.mint(address(strategy), 1e8);
+        vm.prank(address(vault));
+        strategy.depositCollateral(address(wbtc), 1e8);
+        
+        // Also have some SovaBTC for redemptions
+        sovaBTC.mint(address(strategy), 2e8);
+        
+        // Total should include both
+        assertEq(strategy.totalCollateralValue(), 3e8);
+    }
+}
