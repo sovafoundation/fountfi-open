@@ -1,0 +1,102 @@
+{
+  "network": "optimism-sepolia",
+  "chainId": 11155420,
+  "deploymentDate": "2025-08-03",
+  "version": "1.0.0-fixed",
+  "description": "Fixed deployment with proper 8-decimal Bitcoin asset handling",
+  
+  "contracts": {
+    "managedWithdrawal": {
+      "vault": {
+        "address": "0x2005f3675f1D712716c1fcc0D79bB68522c21Cf4",
+        "name": "ManagedWithdrawRWA",
+        "decimals": {
+          "assets": 8,
+          "shares": 18
+        },
+        "verified": false
+      },
+      "strategy": {
+        "address": "0x053b6D8a84814fC34720Ba6495E6d810C442aca2",
+        "name": "ManagedWithdrawMultiCollateralStrategy",
+        "verified": false
+      },
+      "roleManager": {
+        "address": "0x948ca01B31626dc2fd6A0C597204Bd024045CadC",
+        "name": "RoleManager",
+        "verified": false
+      }
+    },
+    
+    "infrastructure": {
+      "multiCollateralRegistry": {
+        "address": "0x63c8215a478f8F57C548a8700420Ac5Bd8Dc3749",
+        "name": "MultiCollateralRegistry",
+        "verified": true
+      },
+      "roleManager": {
+        "address": "0xE401DF98cA0e73371111A76AAbC067a84Eda1f7D",
+        "name": "RoleManager (Original)",
+        "verified": true
+      },
+      "registry": {
+        "address": "0xcBBf02D619F4C53B1826B64Cc07Ea39Fb8442f13",
+        "name": "Registry",
+        "verified": true
+      },
+      "conduit": {
+        "address": "0x2BE0922fC3732b840d42A8912F0296321D9C4a2E",
+        "name": "Conduit",
+        "verified": true
+      }
+    },
+    
+    "tokens": {
+      "sovaBTC": {
+        "address": "0x7CAAC5eB64E3721a82121f3b9b247Cb6fFca7203",
+        "symbol": "sovaBTC",
+        "decimals": 8,
+        "verified": true
+      },
+      "wbtc": {
+        "address": "0xc9FE3e6fF20fE4EB4F48B3993C947be51007D2C1",
+        "symbol": "WBTC",
+        "decimals": 8,
+        "verified": true
+      },
+      "tbtc": {
+        "address": "0x0b00093Dcc35c1a887789e079453c64b641872b6",
+        "symbol": "tBTC",
+        "decimals": 18,
+        "verified": true
+      },
+      "cbbtc": {
+        "address": "0xfa4f9504B0f922221c209B8aC56294A31bC22618",
+        "symbol": "cbBTC",
+        "decimals": 8,
+        "verified": true
+      }
+    }
+  },
+  
+  "deprecated": {
+    "reason": "18-decimal configuration caused incorrect share minting",
+    "contracts": {
+      "vault": "0x385177cEa70E5340ABc0c287CDb573ec0A49Edb4",
+      "strategy": "0xf85E2681274eF80Daf3065083E8545590415AF80",
+      "roleManager": "0x0Aee03ce6D7fbE67e95A840d5fc36Ab081974D9B"
+    }
+  },
+  
+  "manager": "0x6182051f545E673b54119800126d8802E3Da034b",
+  
+  "features": {
+    "multiCollateral": true,
+    "managedWithdrawals": true,
+    "eip712Signatures": true,
+    "batchRedemptions": true,
+    "decimalHandling": "fixed"
+  },
+  
+  "etherscanBaseUrl": "https://sepolia-optimistic.etherscan.io/address/"
+}
