@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.25;
+
+import {ReportedStrategy} from "../src/strategy/ReportedStrategy.sol";
+import {IMultiCollateralStrategy} from "../src/interfaces/IMultiCollateralStrategy.sol";
+import {IMultiCollateralRegistry} from "../src/interfaces/IMultiCollateralRegistry.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+
+/**
+ * @title MultiCollateralStrategy
+ * @notice Strategy that accepts multiple collateral types and values them in SovaBTC terms
+ * @dev Extends ReportedStrategy to maintain compatibility with FountFi's oracle system
+ */
+contract MultiCollateralStrategy is ReportedStrategy, IMultiCollateralStrategy {
+    using SafeTransferLib for address;
+    using FixedPointMathLib for uint256;
+
+    /*//////////////////////////////////////////////////////////////
+                            ERRORS
+    //////////////////////////////////////////////////////////////*/
+
+    error InvalidRegistry();
+    error CollateralNotAllowed();
+    error InvalidAmount();
+    error OnlyVault();
+
+    /*//////////////////////////////////////////////////////////////
+                            EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    event CollateralDeposited(address indexed token, uint256 amount, uint256 sovaBTCValue);
+    event RedemptionFundsDeposited(uint256 amount);
+    event CollateralRegistryUpdated(address indexed newRegistry);
+
+    /*//////////////////////////////////////////////////////////////
+                            STATE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The multi-collateral registry
+    address public collateralRegistry;
+
+    /// @notice Mapping of collateral token to balance
+    mapping(address => uint256) public collateralBalances;
+
+    /// @notice Array of collateral tokens currently held
+    address[] public heldCollateralTokens;
+
+    /// @notice Mapping to track if a token is in the held array
+    mapping(address => bool) public isHeldCollateral;
+
+    /*//////////////////////////////////////////////////////////////
+                            INITIALIZATION
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Initialize the multi-collateral strategy
+     * @param name_ The name of the strategy
+     * @param symbol_ The symbol of the strategy
+     * @param roleManager_ The role manager address
+     * @param manager_ The manager address
+     * @param asset_ The asset address (should be SovaBTC)
+     * @param assetDecimals_ The asset decimals
+     * @param initData Encoded initialization data containing reporter and registry addresses
+     */
+    function initialize(
+        string calldata name_,
+        string calldata symbol_,
+        address roleManager_,
+        address manager_,
+        address asset_,
+        uint8 assetDecimals_,
+        bytes memory initData
+    ) public virtual override {
+        // Decode both reporter and registry from initData
+        (address reporter_, address registry_) = abi.decode(initData, (address, address));
+        
+        // Initialize parent with reporter
+        super.initialize(name_, symbol_, roleManager_, manager_, asset_, assetDecimals_, abi.encode(reporter_));
+        
+        // Set collateral registry
+        if (registry_ == address(0)) revert InvalidRegistry();
+        collateralRegistry = registry_;
+        
+        emit CollateralRegistryUpdated(registry_);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        COLLATERAL MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Deposit collateral tokens into the strategy
+     * @dev Only callable by the vault (sToken)
+     * @param token The collateral token to deposit
+     * @param amount The amount to deposit
+     */
+    function depositCollateral(address token, uint256 amount) external override {
+        if (msg.sender != sToken) revert OnlyVault();
+        if (amount == 0) revert InvalidAmount();
+        
+        IMultiCollateralRegistry registry = IMultiCollateralRegistry(collateralRegistry);
+        if (!registry.isAllowedCollateral(token)) revert CollateralNotAllowed();
+        
+        // Update balance
+        collateralBalances[token] += amount;
+        
+        // Track in held tokens array if new
+        if (!isHeldCollateral[token]) {
+            heldCollateralTokens.push(token);
+            isHeldCollateral[token] = true;
+        }
+        
+        // Calculate and emit SovaBTC value
+        uint256 sovaBTCValue = registry.convertToSovaBTC(token, amount);
+        emit CollateralDeposited(token, amount, sovaBTCValue);
+    }
+
+    /**
+     * @notice Deposit SovaBTC for redemptions (manager only)
+     * @param amount The amount of SovaBTC to deposit
+     */
+    function depositRedemptionFunds(uint256 amount) external override onlyManager {
+        if (amount == 0) revert InvalidAmount();
+        
+        // Transfer SovaBTC from manager
+        asset.safeTransferFrom(msg.sender, address(this), amount);
+        
+        emit RedemptionFundsDeposited(amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Get the balance of the strategy in SovaBTC terms
+     * @dev Overrides ReportedStrategy to include multi-collateral valuation
+     * @return The total balance in SovaBTC terms
+     */
+    function balance() external view override returns (uint256) {
+        // Get price per share from oracle (for yield calculation)
+        uint256 pricePerShare = abi.decode(reporter.report(), (uint256));
+        uint256 totalSupply = sToken.totalSupply();
+        
+        if (totalSupply == 0) {
+            return totalCollateralValue();
+        }
+        
+        // Calculate base value from oracle
+        uint8 sTokenDecimals = 18; // tRWA tokens always use 18 decimals
+        uint256 scalingFactor = 10 ** (18 + sTokenDecimals - assetDecimals);
+        uint256 oracleValue = pricePerShare.mulDiv(totalSupply, scalingFactor);
+        
+        // For multi-collateral, we use the actual collateral value
+        // The oracle value can be used for yield tracking
+        return totalCollateralValue();
+    }
+
+    /**
+     * @notice Get the total value of all collateral in SovaBTC terms
+     * @return total The total value in SovaBTC (8 decimals)
+     */
+    function totalCollateralValue() public view override returns (uint256 total) {
+        IMultiCollateralRegistry registry = IMultiCollateralRegistry(collateralRegistry);
+        
+        // Sum value of all held collateral
+        for (uint256 i = 0; i < heldCollateralTokens.length; i++) {
+            address token = heldCollateralTokens[i];
+            uint256 tokenBalance = collateralBalances[token];
+            
+            if (tokenBalance > 0) {
+                total += registry.convertToSovaBTC(token, tokenBalance);
+            }
+        }
+        
+        // Add any SovaBTC held directly (for redemptions)
+        uint256 sovaBTCBalance = asset.balanceOf(address(this));
+        total += sovaBTCBalance;
+    }
+
+    /**
+     * @notice Get all held collateral tokens
+     * @return Array of collateral token addresses
+     */
+    function getHeldCollateralTokens() external view returns (address[] memory) {
+        return heldCollateralTokens;
+    }
+
+    /**
+     * @notice Update the collateral registry
+     * @param newRegistry The new registry address
+     */
+    function updateCollateralRegistry(address newRegistry) external onlyRoles(roleManager.PROTOCOL_ADMIN()) {
+        if (newRegistry == address(0)) revert InvalidRegistry();
+        
+        collateralRegistry = newRegistry;
+        emit CollateralRegistryUpdated(newRegistry);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        ASSET TRANSFERS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Withdraw assets to fulfill redemptions
+     * @dev Called by vault during withdrawals, returns SovaBTC
+     * @param to The recipient address
+     * @param amount The amount to withdraw in SovaBTC
+     */
+    function withdraw(address to, uint256 amount) external {
+        // Only vault can withdraw
+        require(msg.sender == sToken, "Only vault");
+        
+        // Transfer SovaBTC for redemptions
+        asset.safeTransfer(to, amount);
+    }
+}
