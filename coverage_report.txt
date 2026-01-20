@@ -1,0 +1,4 @@
+error: invalid value 'detailed' for '--report <REPORT>'
+  [possible values: summary, lcov, debug, bytecode]
+
+For more information, try '--help'.

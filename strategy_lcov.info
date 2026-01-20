@@ -1,0 +1,331 @@
+Compiling 126 files with Solc 0.8.25
+Solc 0.8.25 finished in 8.36s
+Compiler run successful with warnings:
+Warning (9302): Return value of low-level calls not used.
+   --> src/strategy/BasicStrategy.sol:123:9:
+    |
+123 |         to.call{value: address(this).balance}("");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> contracts/SimpleMultiCollateralStrategy.sol:91:23:
+   |
+91 |     function withdraw(address to, uint256 amount) external {
+   |                       ^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> contracts/SimpleMultiCollateralStrategy.sol:91:35:
+   |
+91 |     function withdraw(address to, uint256 amount) external {
+   |                                   ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> script/DeployMultiCollateral.s.sol:74:32:
+   |
+74 |     function deployRoleManager(address deployer) internal {
+   |                                ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> script/DeployMultiCollateral.s.sol:136:29:
+    |
+136 |     function deployStrategy(address deployer) internal {
+    |                             ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> script/DeployMultiCollateralProduction.s.sol:174:26:
+    |
+174 |     function deployVault(address deployer, TokenAddresses memory tokens) internal {
+    |                          ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> script/DeployMultiCollateralV2.s.sol:79:32:
+   |
+79 |     function deployRoleManager(address deployer) internal {
+   |                                ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> script/DeployMultiCollateralV2.s.sol:147:29:
+    |
+147 |     function deployStrategy(address deployer) internal {
+    |                             ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ConduitMultiCollateralTest.t.sol:38:22:
+   |
+38 |     function deposit(uint256 amount) external returns (bool) {
+   |                      ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ConduitMultiCollateralTest.t.sol:42:21:
+   |
+42 |     function redeem(address to, uint256 amount) external returns (bool) {
+   |                     ^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/ConduitMultiCollateralTest.t.sol:42:33:
+   |
+42 |     function redeem(address to, uint256 amount) external returns (bool) {
+   |                                 ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ManagedWithdrawMultiCollateral.t.sol:228:9:
+    |
+228 |         uint256[] memory assets = strategy.batchRedeem(requests, signatures);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/tRWAMultiCollateral.t.sol:321:9:
+    |
+321 |         uint256 user1Shares = vault.balanceOf(user);
+    |         ^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/tRWAMultiCollateralFullCoverage.t.sol:92:30:
+   |
+92 |     function onBeforeDeposit(address token, address user, uint256 assets, address receiver)
+   |                              ^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/tRWAMultiCollateralFullCoverage.t.sol:92:45:
+   |
+92 |     function onBeforeDeposit(address token, address user, uint256 assets, address receiver)
+   |                                             ^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/tRWAMultiCollateralFullCoverage.t.sol:92:59:
+   |
+92 |     function onBeforeDeposit(address token, address user, uint256 assets, address receiver)
+   |                                                           ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+  --> test/tRWAMultiCollateralFullCoverage.t.sol:92:75:
+   |
+92 |     function onBeforeDeposit(address token, address user, uint256 assets, address receiver)
+   |                                                                           ^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:100:31:
+    |
+100 |     function onBeforeWithdraw(address token, address by, uint256 assets, address to, address owner)
+    |                               ^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:100:46:
+    |
+100 |     function onBeforeWithdraw(address token, address by, uint256 assets, address to, address owner)
+    |                                              ^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:100:58:
+    |
+100 |     function onBeforeWithdraw(address token, address by, uint256 assets, address to, address owner)
+    |                                                          ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:100:74:
+    |
+100 |     function onBeforeWithdraw(address token, address by, uint256 assets, address to, address owner)
+    |                                                                          ^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:100:86:
+    |
+100 |     function onBeforeWithdraw(address token, address by, uint256 assets, address to, address owner)
+    |                                                                                      ^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:108:31:
+    |
+108 |     function onBeforeTransfer(address token, address from, address to, uint256 amount)
+    |                               ^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:108:46:
+    |
+108 |     function onBeforeTransfer(address token, address from, address to, uint256 amount)
+    |                                              ^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:108:60:
+    |
+108 |     function onBeforeTransfer(address token, address from, address to, uint256 amount)
+    |                                                            ^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:108:72:
+    |
+108 |     function onBeforeTransfer(address token, address from, address to, uint256 amount)
+    |                                                                        ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to view
+  --> contracts/SimpleMultiCollateralStrategy.sol:91:5:
+   |
+91 |     function withdraw(address to, uint256 amount) external {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/BasicMultiCollateral.t.sol:26:5:
+   |
+26 |     function testBasicSetup() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:34:5:
+   |
+34 |     function balance() external view returns (uint256) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:38:5:
+   |
+38 |     function deposit(uint256 amount) external returns (bool) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:42:5:
+   |
+42 |     function redeem(address to, uint256 amount) external returns (bool) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:49:5:
+   |
+49 |     function name() external view returns (string memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:53:5:
+   |
+53 |     function symbol() external view returns (string memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> test/ConduitMultiCollateralTest.t.sol:98:5:
+   |
+98 |     function redeem(uint256, address, address) external returns (uint256) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> test/ConduitMultiCollateralTest.t.sol:102:5:
+    |
+102 |     function withdraw(uint256, address, address) external returns (uint256) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/FullMultiCollateral.t.sol:55:5:
+   |
+55 |     function testRegistrySetup() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/FullMultiCollateral.t.sol:151:5:
+    |
+151 |     function testConversionRates() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/ManagedWithdrawMultiCollateralFull.t.sol:123:5:
+    |
+123 |     function test_Constructor() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/ManagedWithdrawMultiCollateralFull.t.sol:522:5:
+    |
+522 |     function test_Strategy_GettersAndPublicVars() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/MultiCollateralCoverage.t.sol:69:5:
+   |
+69 |     function testVaultViewFunctions() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/MultiCollateralRegistryEdgeCases.t.sol:203:5:
+    |
+203 |     function testGetAllCollateralTokensEmpty() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/SimpleMultiCollateralStrategyCoverage.t.sol:52:5:
+   |
+52 |     function testGetters() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/SimpleMultiCollateralStrategyCoverage.t.sol:230:5:
+    |
+230 |     function testEmptyStrategyTotalValue() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/SimpleMultiCollateralStrategyFullCoverage.t.sol:275:5:
+    |
+275 |     function testAllViewFunctions() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> test/tRWAMultiCollateral.t.sol:76:5:
+   |
+76 |     function testVaultSetup() public {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/tRWAMultiCollateral.t.sol:266:5:
+    |
+266 |     function testMaxDepositAndMaxMint() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/tRWAMultiCollateralFullCoverage.t.sol:329:5:
+    |
+329 |     function testAllViewFunctions() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Analysing contracts...
+Running tests...
+
+Ran 38 tests for test/ManagedWithdrawMultiCollateralFull.t.sol:ManagedWithdrawMultiCollateralFullTest
+[PASS] test_BatchRedeemShares_InsufficientOutputAssetsInBatch() (gas: 333744)
+[PASS] test_BatchRedeemShares_InvalidArrayLengths() (gas: 40648)
+[PASS] test_BatchRedeemShares_RedeemMoreThanMax() (gas: 261213)
+[PASS] test_BatchRedeemShares_Success() (gas: 332144)
+[PASS] test_BatchRedeemShares_WithHooks() (gas: 455148)
+[PASS] test_Constructor() (gas: 31326)
+[PASS] test_ConvertToShares_ConvertToAssets() (gas: 267382)
+[PASS] test_DepositCollateral_Multiple() (gas: 407159)
+[PASS] test_DepositCollateral_NotAllowed() (gas: 1271819)
+[PASS] test_Deposit_Reverts() (gas: 2217071)
+[PASS] test_Mint_Reverts() (gas: 2217188)
+[PASS] test_ProperRedemptionWorkflow() (gas: 375058)
+[PASS] test_Redeem_InsufficientOutputAssets() (gas: 339619)
+[PASS] test_Redeem_OnlyStrategy() (gas: 13269)
+[PASS] test_Redeem_ThreeParam_ExceedsMax() (gas: 265361)
+[PASS] test_Redeem_ThreeParam_Success() (gas: 327484)
+[PASS] test_Redeem_WithMinAssets() (gas: 327840)
+[PASS] test_Strategy_Balance() (gas: 259239)
+[PASS] test_Strategy_BatchRedeem_ArrayLengthMismatch() (gas: 20211)
+[PASS] test_Strategy_CollateralBalances() (gas: 254120)
+[PASS] test_Strategy_Constructor() (gas: 8302704)
+[PASS] test_Strategy_DepositCollateral_NotAllowed() (gas: 1173951)
+[PASS] test_Strategy_DepositCollateral_NotVault() (gas: 13962)
+[PASS] test_Strategy_DepositCollateral_ZeroAmount() (gas: 16744)
+[PASS] test_Strategy_DepositRedemptionFunds_NotManager() (gas: 11482)
+[PASS] test_Strategy_GettersAndPublicVars() (gas: 19413)
+[PASS] test_Strategy_HeldCollateralTokens() (gas: 395596)
+[PASS] test_Strategy_Initialize() (gas: 12708847)
+[PASS] test_Strategy_IsHeldCollateral() (gas: 254123)
+[PASS] test_Strategy_Redeem_ExpiredRequest() (gas: 18107)
+[PASS] test_Strategy_Redeem_InvalidSignature() (gas: 57477)
+[PASS] test_Strategy_Redeem_NonceReuse() (gas: 363622)
+[PASS] test_Strategy_SetCollateralRegistry() (gas: 1525556)
+[PASS] test_Strategy_UsedNonces() (gas: 364274)
+[PASS] test_Vault_MaxFunctions() (gas: 273622)
+[PASS] test_Vault_PreviewFunctions() (gas: 287800)
+[PASS] test_Vault_ViewFunctions() (gas: 280817)
+[PASS] test_Withdraw_AlwaysReverts() (gas: 12238)
+Suite result: ok. 38 passed; 0 failed; 0 skipped; finished in 33.59ms (30.85ms CPU time)
+
+Ran 1 test suite in 266.47ms (33.59ms CPU time): 38 tests passed, 0 failed, 0 skipped (38 total tests)
+Wrote LCOV report.
